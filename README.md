@@ -1,3 +1,4 @@
+Cloned from: https://github.com/cgg-bern/AlgoHex/tree/dev/dockerfile-without-gurobi in an attempt to build for Windows
 
 ![algohex_results](https://github.com/cgg-bern/AlgoHex/assets/137911074/38e7d3be-1adf-48a9-ae5a-1f075f0d9cd3)
 
