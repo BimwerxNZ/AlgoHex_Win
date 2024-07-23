@@ -1,0 +1,77 @@
+FROM ubuntu:20.04
+
+# Set the number of processors
+ARG Nproc=8
+
+# Set environment variables to avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+
+# Install necessary dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tzdata \
+    binutils \
+    build-essential \
+    ca-certificates \
+    clang \
+    cmake \
+    curl \
+    git \
+    libc-dev \
+    liblapack-dev \
+    libopenblas-dev \
+    libopenmpi-dev \
+    libtool \
+    locales \
+    ninja-build \
+    time \
+    wget \
+    pkg-config \
+    libgmp-dev \
+    libomp-dev \
+    gfortran \
+    mingw-w64 \
+    wine \
+    libgtest-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set up gtest
+RUN cd /usr/src/gtest && \
+    cmake CMakeLists.txt && \
+    make && \
+    ln -s lib/*.a /usr/lib
+
+# Set up Coin-OR libraries
+RUN mkdir -p /usr/src/coin-or && \
+    cd /usr/src/coin-or && \
+    wget https://raw.githubusercontent.com/coin-or/coinbrew/master/coinbrew && \
+    chmod +x coinbrew && \
+    ./coinbrew fetch https://github.com/coin-or-tools/ThirdParty-Mumps@3.0.5 && \
+    ./coinbrew fetch Ipopt@3.14.13 --skip-update && \
+    ./coinbrew fetch Bonmin@master --skip-update && \
+    ./coinbrew build Ipopt@3.14.13 --verbosity 2 --skip-update --prefix=/opt/coin-or --parallel-jobs $Nproc --tests none && \
+    ./coinbrew build Bonmin@master --verbosity 2 --skip-update --prefix=/opt/coin-or --parallel-jobs $Nproc --tests none && \
+    ln -s /opt/coin-or/include/coin-or /opt/coin-or/include/coin
+
+# Set environment variables
+ENV LD_LIBRARY_PATH=/opt/coin-or/lib
+ENV DYLD_LIBRARY_PATH=/opt/coin-or/lib
+ENV IPOPT_HOME=/opt/coin-or
+ENV CBC_DIR=/opt/coin-or
+ENV BONMIN_ROOT_DIR=/opt/coin-or
+
+# Copy the AlgoHex source code into the Docker image
+COPY . /AlgoHex
+
+# Build AlgoHex with cross-compilation for Windows
+WORKDIR /AlgoHex/build
+RUN cmake -G "Ninja" \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
+      -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
+      -DCMAKE_CXX_FLAGS="-march=native" \
+      -DBONMIN_ROOT_DIR=/opt/coin-or .. && \
+    ninja
+
+# Link built binaries to /usr/local/bin
+RUN ln -s /AlgoHex/build/bin/* /usr/local/bin
